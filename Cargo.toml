@@ -1,0 +1,10 @@
+[package]
+name = "arch-diff"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flate2 = "1.0.30"
+tar = "0.4.40"
+reqwest = { version = "0.12.4", features = ["blocking"] }
+bytes = "1.6.0"
