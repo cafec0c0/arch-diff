@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashMap;
 use std::env::consts::ARCH;
 use std::fs;
 use std::io::{BufReader, Read};
@@ -7,7 +7,6 @@ use std::path::{Path};
 use bytes::Buf;
 use flate2::read::GzDecoder;
 use tar::EntryType;
-use crate::PackageComparison::Different;
 
 #[derive(Debug)]
 struct Package {
@@ -90,15 +89,6 @@ struct Repository {
     servers: Vec<String>
 }
 
-impl Repository {
-    fn default() -> Self {
-        Repository {
-            name: String::from(""),
-            servers: vec![]
-        }
-    }
-}
-
 fn get_local_repositories() -> Vec<Repository> {
     let path = Path::new("/etc/pacman.conf");
 
@@ -138,7 +128,7 @@ fn get_local_repositories() -> Vec<Repository> {
             servers.push(line.split_whitespace().last().unwrap().into());
         }
 
-        if (line.starts_with("Include")) {
+        if line.starts_with("Include") {
             // We should probably parse this recursively, but we'll just assume it's a list of mirrors
             read_mirror_list(line.split_whitespace().last().unwrap().into())
                 .unwrap()
@@ -155,7 +145,7 @@ fn get_remote_database(repo: &Repository) -> Result<bytes::Bytes, String>{
         let url = format!("{}/{}.db", substitute_url_vars(&server, &repo.name), &repo.name);
 
         let resp = reqwest::blocking::get(url);
-        if (resp.is_ok()) {
+        if resp.is_ok() {
             return Ok(resp.unwrap().bytes().unwrap())
         }
     }
@@ -163,10 +153,10 @@ fn get_remote_database(repo: &Repository) -> Result<bytes::Bytes, String>{
     Err(String::from("unable to fetch database from any servers"))
 }
 
-fn get_remote_packages() -> BTreeMap<String, Package> {
+fn get_remote_packages() -> HashMap<String, Package> {
     let repos = get_local_repositories();
 
-    let mut packages = BTreeMap::new();
+    let mut packages = HashMap::new();
 
     for repo in repos {
         println!(":: Fetching package database for {}", repo.name);
@@ -178,7 +168,7 @@ fn get_remote_packages() -> BTreeMap<String, Package> {
         let entries = binding.entries().unwrap();
 
         for entry in entries {
-            let mut unwrapped = &mut entry.unwrap();
+            let unwrapped = &mut entry.unwrap();
 
             if unwrapped.header().entry_type() == EntryType::Regular && unwrapped.path().unwrap().ends_with("desc") {
                 let mut s: String = String::new();
@@ -250,7 +240,7 @@ fn main() {
     for package in local_packages {
         if remote_packages.contains_key(&package.0) {
             let remote_package = remote_packages.get(&package.0).unwrap();
-            if compare_package_versions(&package.1, &remote_package) == Different {
+            if compare_package_versions(&package.1, &remote_package) == PackageComparison::Different {
                 let other = remote_package.to_owned();
                 outdated_packages.push(PackagePair{pkg1: package.1, pkg2: Package {
                     name: other.name.to_owned(),
